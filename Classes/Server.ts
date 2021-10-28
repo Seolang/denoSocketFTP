@@ -30,11 +30,11 @@ export class Server {
                     ensureFileSync(fileName)
 
                 await PacketUtil.Send(this.serverConn, 
-                    new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_SAVE, 1, Const.NOT_LASTMSG), 
+                    new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_SAVE, 1, Const.LASTMSG), 
                     new ResponseBody(new Uint8Array([Const.ACCEPTED]))))
             } catch {
                 await PacketUtil.Send(this.serverConn, 
-                    new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_SAVE, 1, Const.NOT_LASTMSG), 
+                    new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_SAVE, 1, Const.LASTMSG), 
                     new ResponseBody(new Uint8Array([Const.DENIED]))))
 
                 return
@@ -58,7 +58,7 @@ export class Server {
                     totalRecv += dBody.getSize()
                 }
 
-                const rstHeader = Header.makeHeader(Const.MSG_RST, Const.CMD_SAVE, 1, Const.NOT_LASTMSG)
+                const rstHeader = Header.makeHeader(Const.MSG_RST, Const.CMD_SAVE, 1, Const.LASTMSG)
                 if (mem.length !== fileSize) {
                     await PacketUtil.Send(this.serverConn, 
                         new Message(rstHeader, new ResultBody(new Uint8Array([Const.FAIL]))))
@@ -73,7 +73,7 @@ export class Server {
                     new Message(rstHeader, new ResultBody(new Uint8Array([Const.SUCCESS]))))
 
             } catch(e) {
-                const rstHeader = Header.makeHeader(Const.MSG_RST, Const.CMD_SAVE, 1, Const.NOT_LASTMSG)
+                const rstHeader = Header.makeHeader(Const.MSG_RST, Const.CMD_SAVE, 1, Const.LASTMSG)
                 await PacketUtil.Send(this.serverConn, 
                     new Message(rstHeader, new ResultBody(new Uint8Array([Const.FAIL]))))
                 throw new Error(`Failed to Save File\n`+e)
@@ -92,19 +92,19 @@ export class Server {
             //if not exist, send Deny Response, else, send Accpet response
             if (!await exists(reqFile)) {
                 await PacketUtil.Send(this.serverConn, 
-                    new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.NOT_LASTMSG), 
+                    new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.LASTMSG), 
                     new ResponseBody(new Uint8Array([Const.DENIED]))))
 
                 return
             }
             await PacketUtil.Send(this.serverConn, 
-                new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.NOT_LASTMSG), 
+                new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.LASTMSG), 
                 new ResponseBody(new Uint8Array([Const.ACCEPTED]))))
 
             // Send File info into Request Message to client
             const file = await Deno.readFile(reqFile)
             const reqBody = RequestBody.makeReqBody(file.length, '')
-            const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_LOAD, reqBody.getSize(), Const.NOT_LASTMSG)
+            const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_LOAD, reqBody.getSize(), Const.LASTMSG)
             await PacketUtil.Send(this.serverConn, new Message(reqHeader, reqBody))
             
             try {
@@ -132,32 +132,46 @@ export class Server {
 
     async delete(bytes: Uint8Array) {
         try {
+            
+            const recursive = new RequestBody(bytes).FILESIZE
             const delFile = Const.PATH+decoder.decode(new RequestBody(bytes).FILENAME)
 
             if (!await exists(delFile)) {
                 await PacketUtil.Send(this.serverConn, 
-                    new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_DELETE, 1, Const.NOT_LASTMSG), 
+                    new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_DELETE, 1, Const.LASTMSG), 
                     new ResponseBody(new Uint8Array([Const.DENIED]))))
 
                 return
             }
 
-            await PacketUtil.Send(this.serverConn, 
-                new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_DELETE, 1, Const.NOT_LASTMSG), 
-                new ResponseBody(new Uint8Array([Const.ACCEPTED]))))
-
             try {
-                Deno.removeSync(delFile)
+                if (recursive)
+                    Deno.removeSync(delFile, {recursive:true})
+                else
+                    Deno.removeSync(delFile)
 
                 await PacketUtil.Send(this.serverConn, 
-                    new Message(Header.makeHeader(Const.MSG_RST, Const.CMD_DELETE, 1, Const.NOT_LASTMSG), 
+                    new Message(Header.makeHeader(Const.MSG_RST, Const.CMD_DELETE, 1, Const.LASTMSG), 
                     new ResponseBody(new Uint8Array([Const.SUCCESS]))))
             } catch(e) {
                 console.log(`Delete Error\n`+e)
                 await PacketUtil.Send(this.serverConn, 
-                    new Message(Header.makeHeader(Const.MSG_RST, Const.CMD_DELETE, 1, Const.NOT_LASTMSG), 
+                    new Message(Header.makeHeader(Const.MSG_RST, Const.CMD_DELETE, 1, Const.LASTMSG), 
                     new ResponseBody(new Uint8Array([Const.FAIL]))))
             }
+        } catch(e) {
+            await PacketUtil.Send(this.serverConn, Message.nullMessage())
+            throw e
+        }
+    }
+
+    async clearAll() {
+        try {
+            Deno.removeSync(Const.PATH, {recursive:true})
+            await PacketUtil.Send(this.serverConn, 
+                new Message(Header.makeHeader(Const.MSG_RST, Const.CMD_CLEAR, 1, Const.LASTMSG), 
+                new ResponseBody(new Uint8Array([Const.SUCCESS]))))
+
         } catch(e) {
             await PacketUtil.Send(this.serverConn, Message.nullMessage())
             throw e
