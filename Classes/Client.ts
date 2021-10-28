@@ -116,7 +116,8 @@ export class Client {
                 console.log(`start Load ${Const.PATH+path} to ${dest}`)
                 // Receive file size info from server by using Req Message.
                 const fileSize = new RequestBody((await PacketUtil.Receive(this.clientConn)).body.getBytes()).FILESIZE
-
+                
+                // check if file exist, if not, make empty file
                 try {
                     if(!await exists(dest))
                         ensureFileSync(dest)
