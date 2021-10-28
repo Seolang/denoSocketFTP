@@ -49,7 +49,7 @@ export class Client {
             // Request MSG to server
             const file = await Deno.readFile(path)
             const reqBody = RequestBody.makeReqBody(file.length, dest)
-            const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_SAVE, reqBody.getSize(), Const.NOT_LASTMSG)
+            const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_SAVE, reqBody.getSize(), Const.LASTMSG)
             await PacketUtil.Send(this.clientConn, new Message(reqHeader, reqBody))
 
             // Receive Response and if req accepted,
@@ -104,7 +104,7 @@ export class Client {
 
             // Send Req load file to Server
             const reqBody = RequestBody.makeReqBody(0, path)
-            const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_LOAD, reqBody.getSize(), Const.NOT_LASTMSG)
+            const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_LOAD, reqBody.getSize(), Const.LASTMSG)
             await PacketUtil.Send(this.clientConn, new Message(reqHeader, reqBody))
 
             // Receive response, if file doesn't exist or somethings wrong, exit to else
@@ -116,7 +116,8 @@ export class Client {
                 console.log(`start Load ${Const.PATH+path} to ${dest}`)
                 // Receive file size info from server by using Req Message.
                 const fileSize = new RequestBody((await PacketUtil.Receive(this.clientConn)).body.getBytes()).FILESIZE
-
+                
+                // check if file exist, if not, make empty file
                 try {
                     if(!await exists(dest))
                         ensureFileSync(dest)
@@ -162,40 +163,55 @@ export class Client {
     }
 
     //Delete Function
-    async delete(path: string) {
+    async delete(path: string, option: string) {
         try {
-            // Send Req Delete
-            const reqBody = RequestBody.makeReqBody(0, path)
-            const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_DELETE, reqBody.getSize(), Const.NOT_LASTMSG)
+            // Send Req delete
+            const recursive = option == '-r' ? 1 : 0
+            const reqBody = RequestBody.makeReqBody(recursive, path)
+            const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_DELETE, reqBody.getSize(), Const.LASTMSG)
             await PacketUtil.Send(this.clientConn, new Message(reqHeader, reqBody))
 
             // Receive response, if file doesn't exist or somethings wrong, exit to else
             const response = await PacketUtil.Receive(this.clientConn)
-            if (response.header.typeMSG !== Const.MSG_RES)
-                    throw new Error(`Invalid Packet Order`)
-
-            if (response.body.getBytes()[0] === Const.ACCEPTED) {
-                const result = await PacketUtil.Receive(this.clientConn)
-                if(result.header.typeMSG !== Const.MSG_RST)
-                    throw new Error(`Invalid Packet Order`)
-
-                const rstBody = new ResultBody(result.body.getBytes())
-                if (rstBody.RESULT === Const.SUCCESS) {
-                    console.log(`Delete Completed`)
+            if (response.header.typeMSG === Const.MSG_RES) {
+                console.log(`File Not Found`)
+            }
+            else if(response.header.typeMSG === Const.MSG_RST) {
+                if(response.body.getBytes()[0] === Const.SUCCESS) {
+                    console.log(`Delete Complete`)
                 }
                 else {
-                    console.log(`Delete Fail`)
+                    console.log(`Fail to delete file`)
                 }
             }
             else {
-                console.log(`File not Found`)
+                throw new Error(`Invalid Packet Order`)
             }
-                    
+                               
         } catch(e) {
             await PacketUtil.Send(this.clientConn, Message.nullMessage())
             throw e
         }
+    }
 
+    async clearAll() {
+        try {
+            // Send Req clear All
+            const reqBody = RequestBody.makeReqBody(0, '')
+            const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_CLEAR, reqBody.getSize(), Const.LASTMSG)
+            await PacketUtil.Send(this.clientConn, new Message(reqHeader, reqBody))
+
+            const result = await PacketUtil.Receive(this.clientConn)
+
+            if (result.header.typeMSG === Const.MSG_RST && result.body.getBytes()[0] === Const.SUCCESS)
+                console.log(`Successfully clear all files`)
+            else
+                console.log(`Fail to delete all files`)
+
+        } catch(e) {
+            await PacketUtil.Send(this.clientConn, Message.nullMessage())
+            throw e
+        }
     }
 
     //Queue Observe and Execute
@@ -215,13 +231,17 @@ export class Client {
                             break
                         
                         case Const.CMD_DELETE:
-                            await this.delete(cmdBlock.path)
+                            await this.delete(cmdBlock.path, cmdBlock.dest)
                             break
 
                         case Const.CMD_EXIT:
                             console.log(`Exit Program`)
                             this.close()
                             Deno.exit()
+                            break
+
+                        case Const.CMD_CLEAR:
+                            await this.clearAll()
                             break
                         
                         default:
@@ -240,8 +260,8 @@ export class Client {
 
     //CMD Select processing function
     async selectCmd() {
-        console.log(`\n===============Start File Transfer System===============\n`)
-        console.log(`1: save file   2: load file    3: delete file    4: exit\n`)
+        console.log(`\n=======================Start File Transfer System======================\n`)
+        console.log(`1: save file   2: load file    3: delete file    4: exit   5: clear\n`)
         console.log(`Type Command: ex) save 1.jpg backup.jpg`)
         const command = await this.cmd() || '0'
         if(command[0] === 'save') {
@@ -251,10 +271,13 @@ export class Client {
             this.cmdQue.enqueue(new CmdBlock(Const.CMD_LOAD, command[1], command[2]))
         }
         else if (command[0] === 'delete') {
-            this.cmdQue.enqueue(new CmdBlock(Const.CMD_DELETE, command[1]))
+            this.cmdQue.enqueue(new CmdBlock(Const.CMD_DELETE, command[1], command[2]))
         }
         else if (command[0] === 'exit') {
             this.cmdQue.enqueue(new CmdBlock(Const.CMD_EXIT))
+        }
+        else if (command[0] === 'clear') {
+            this.cmdQue.enqueue(new CmdBlock(Const.CMD_CLEAR))
         }
         else{
             console.log(`You typed wrong command`)

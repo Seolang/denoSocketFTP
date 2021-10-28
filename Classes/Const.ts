@@ -3,6 +3,7 @@ export class Const{
     static CMD_LOAD = 2
     static CMD_DELETE = 3
     static CMD_EXIT = 4
+    static CMD_CLEAR = 5
 
     static MSG_REQ = 1
     static MSG_RES = 2
