@@ -1,11 +1,16 @@
+// Server endlessly run by this file. 
+
 import {Server} from "./Classes/Server.ts"
 import {Const} from "./Classes/Const.ts"
 import {PacketUtil} from "./Classes/PacketUtil.ts"
 
+// Start listning connection signal from port and hostname in Const class
 const Listen = Deno.listen({port:Const.port, transport:"tcp", hostname:Const.host})
+// Waiting first connect with client
 const server = new Server(await Listen.accept())
 while(1) {
     try {
+        //Receive request from Client 
         const req = await PacketUtil.Receive(server.serverConn)
         if(req.header.typeMSG !== Const.MSG_REQ) {
             server.serverConn.close()
@@ -22,6 +27,10 @@ while(1) {
 
             case Const.CMD_DELETE:
                 await server.delete(req.body.getBytes())
+                break
+
+            case Const.CMD_CLEAR:
+                await server.clearAll()
                 break
 
             default:

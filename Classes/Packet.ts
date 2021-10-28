@@ -43,10 +43,10 @@ export class Header implements Packet {
 
     constructor(bytes: Uint8Array) {
         const len = toInt64Bytes(bytes.slice(2,10))
-        this.typeMSG = bytes[0]
-        this.typeCMD = bytes[1]
-        this.bodyLen = len
-        this.lastMSG = bytes[10]
+        this.typeMSG = bytes[0]     // 1: Request, 2: Response, 3: Data, 4: Result
+        this.typeCMD = bytes[1]     // 1: Save, 2: Load, 3: Delete
+        this.bodyLen = len          // size of body right behind packet contents
+        this.lastMSG = bytes[10]    // 1: this packet is last, 0: there are more packets which divided from one source
     }
 
     public getBytes() {
@@ -61,7 +61,7 @@ export class Header implements Packet {
     }
 
     // Because Javascript doesn't support Constructor Overload,
-    // Ad this static function to make header easier
+    // Add this static function to make header easier
     public static makeHeader(MSG:number, CMD:number, Len:number, last:number) {
         const header = new Header(new Uint8Array(11))
         header.typeMSG = MSG
@@ -73,10 +73,9 @@ export class Header implements Packet {
     }
 }
 
-
 export class RequestBody implements Packet {
-    FILESIZE: number
-    FILENAME: Uint8Array
+    FILESIZE: number    //Request file size
+    FILENAME: Uint8Array    //Request file path/name
 
     constructor(bytes:Uint8Array) {
         this.FILESIZE = toInt64Bytes(bytes.slice(0, 8))
@@ -93,6 +92,7 @@ export class RequestBody implements Packet {
         return 8 + this.FILENAME.length
     }
 
+    // Instead of Constructor Overload
     public static makeReqBody(size: number, name: string) {
         const body = new RequestBody(new Uint8Array(11))
         body.FILESIZE = size
@@ -104,7 +104,7 @@ export class RequestBody implements Packet {
 }
 
 export class ResponseBody implements Packet {
-    RESPONSE: number
+    RESPONSE: number    // 1: ACCEPTED, 0: DENIED
     
     constructor(bytes:Uint8Array) {
         this.RESPONSE = bytes[0]
@@ -120,7 +120,7 @@ export class ResponseBody implements Packet {
 }
 
 export class DataBody implements Packet {
-    DATA: Uint8Array
+    DATA: Uint8Array    // Bytes array of data
 
 
     constructor(bytes:Uint8Array) {
@@ -137,7 +137,7 @@ export class DataBody implements Packet {
 }
 
 export class ResultBody implements Packet {
-    RESULT: number
+    RESULT: number  // 1: SUCCESS, 0: FAIL
     
     constructor(bytes:Uint8Array) {
         this.RESULT = bytes[0]
