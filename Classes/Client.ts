@@ -35,6 +35,7 @@ export class Client {
 
     //Save function
     async save(path: string, dest = '') {
+        console.log(`start Save "${path}" to "${Const.PATH+dest}"`)
         try {
             //Check if file exist, if not, throw Error to runCmd function
             if (!await exists(path)) {
@@ -58,7 +59,6 @@ export class Client {
                 throw new Error(`Invalid Packet Order`)
 
             if (response.body.getBytes()[0] === Const.ACCEPTED) {
-                console.log(`start Save ${path} to ${Const.PATH+dest}`)
                 let totalSend = 0
 
                 // Splice Data under DATACHUNK(1013 Bytes default) Bytes, (11 header + 1013? data =< 1024 Bytes )
@@ -80,7 +80,7 @@ export class Client {
                 const rstBody = new ResultBody(result.body.getBytes())
 
                 if (rstBody.RESULT === Const.SUCCESS) {
-                    console.log(`Save Completed`)
+                    console.log(`Save "${path}" to "${Const.PATH+dest}" Completed`)
                 }
                 else {
                     console.log(`Save Fail`)
@@ -98,6 +98,7 @@ export class Client {
     //Load Function
     async load(path: string, dest: string) {
         try {
+            console.log(`start Load "${Const.PATH+path}" to "${dest}"`)
             if (dest === '') {
                 dest = path
             }
@@ -113,7 +114,6 @@ export class Client {
                     throw new Error(`Invalid Packet Order`)
             
             if (response.body.getBytes()[0] === Const.ACCEPTED) {
-                console.log(`start Load ${Const.PATH+path} to ${dest}`)
                 // Receive file size info from server by using Req Message.
                 const fileSize = new RequestBody((await PacketUtil.Receive(this.clientConn)).body.getBytes()).FILESIZE
                 
@@ -147,7 +147,7 @@ export class Client {
                     }
                 
                     await Deno.writeFile(dest, mem)
-                    console.log(`Load Complete`)
+                    console.log(`Load "${Const.PATH+path}" to "${dest}" Complete`)
 
                 } catch(e) {
                     throw new Error(`Failed to Load File\n`+e)
@@ -166,6 +166,7 @@ export class Client {
     async delete(path: string, option: string) {
         try {
             // Send Req delete
+            console.log(`start Delete "${Const.PATH+path}"`)
             const recursive = option == '-r' ? 1 : 0
             const reqBody = RequestBody.makeReqBody(recursive, path)
             const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_DELETE, reqBody.getSize(), Const.LASTMSG)
@@ -178,7 +179,7 @@ export class Client {
             }
             else if(response.header.typeMSG === Const.MSG_RST) {
                 if(response.body.getBytes()[0] === Const.SUCCESS) {
-                    console.log(`Delete Complete`)
+                    console.log(`Delete "${Const.PATH+path}" Complete`)
                 }
                 else {
                     console.log(`Fail to delete file`)
