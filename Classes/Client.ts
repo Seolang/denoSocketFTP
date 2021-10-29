@@ -282,6 +282,7 @@ export class Client {
         else{
             console.log(`You typed wrong command`)
         }
+        this.runCmd()
     }
 
     // Take Input From Console

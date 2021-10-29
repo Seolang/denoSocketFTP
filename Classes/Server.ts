@@ -136,6 +136,13 @@ export class Server {
             const recursive = new RequestBody(bytes).FILESIZE
             const delFile = Const.PATH+decoder.decode(new RequestBody(bytes).FILENAME)
 
+            if (delFile.startsWith(Const.PATH+`..`)) {
+                await PacketUtil.Send(this.serverConn, 
+                    new Message(Header.makeHeader(Const.MSG_RST, Const.CMD_DELETE, 1, Const.LASTMSG), 
+                    new ResponseBody(new Uint8Array([Const.FAIL]))))
+                return
+            }
+
             if (!await exists(delFile)) {
                 await PacketUtil.Send(this.serverConn, 
                     new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_DELETE, 1, Const.LASTMSG), 
