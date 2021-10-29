@@ -36,10 +36,10 @@ export class Message implements Packet {
 
 // Header class
 export class Header implements Packet {
-    typeMSG: number
-    typeCMD: number
-    bodyLen: number
-    lastMSG: number
+    typeMSG: number     // message type
+    typeCMD: number     // command type
+    bodyLen: number     // body packet length (need to read length)
+    lastMSG: number     
 
     constructor(bytes: Uint8Array) {
         const len = toInt64Bytes(bytes.slice(2,10))
