@@ -20,7 +20,7 @@ export class Const{
     static FAIL = 0
 
     static port = 10000
-    static host = '127.0.0.1'
+    static host = '203.251.115.168'
 
     static PATH = './Storage_Backup/'
     static DATACHUNK = 1013

@@ -98,10 +98,10 @@ export class Client {
     //Load Function
     async load(path: string, dest: string) {
         try {
-            console.log(`start Load "${Const.PATH+path}" to "${dest}"`)
             if (dest === '') {
                 dest = path
             }
+            console.log(`start Load "${path}" to "${dest}"`)
 
             // Send Req load file to Server
             const reqBody = RequestBody.makeReqBody(0, path)
@@ -116,7 +116,7 @@ export class Client {
             if (response.body.getBytes()[0] === Const.ACCEPTED) {
                 // Receive file size info from server by using Req Message.
                 const fileSize = new RequestBody((await PacketUtil.Receive(this.clientConn)).body.getBytes()).FILESIZE
-                
+                console.log(fileSize)
                 // check if file exist, if not, make empty file
                 try {
                     if(!await exists(dest))
@@ -125,24 +125,26 @@ export class Client {
                     const mem = new Uint8Array(fileSize)
                     let lastMSG = 0
                     let totalRecv = 0
-
+                    console.log(`memory alloc comple`)
                     // Receive Data
                     while(lastMSG === Const.NOT_LASTMSG && totalRecv < fileSize) {
                         const message = await PacketUtil.Receive(this.clientConn)
                         const dHeader = message.header
+
                         if(dHeader.typeMSG !== Const.MSG_SND)
                             throw new Error(`Invalid Packet Order`)
 
                         const dBody = new DataBody(message.body.getBytes())
+                        console.log(totalRecv)
                         for (let i = totalRecv, j = 0; i < totalRecv + dBody.getSize(); i++) {
                             mem[i] = dBody.DATA[j++]
                         }
                         lastMSG = dHeader.lastMSG
                         totalRecv += dBody.getSize()
                     }
-
-                    if (mem.length !== fileSize) {
-                        Deno.remove(dest)
+                    console.log(`receive completed`)
+                    if (totalRecv !== fileSize) {
+                        await Deno.remove(dest)
                         throw new Error(`File Size Mismatch`)
                     }
                 

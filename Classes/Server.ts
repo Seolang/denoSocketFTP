@@ -59,11 +59,11 @@ export class Server {
                 }
 
                 const rstHeader = Header.makeHeader(Const.MSG_RST, Const.CMD_SAVE, 1, Const.LASTMSG)
-                if (mem.length !== fileSize) {
+                if (totalRecv !== fileSize) {
                     await PacketUtil.Send(this.serverConn, 
                         new Message(rstHeader, new ResultBody(new Uint8Array([Const.FAIL]))))
 
-                    Deno.remove(fileName)
+                    await Deno.remove(fileName)
                     throw new Error(`File Size Mismatch`)
                 }
             
@@ -103,6 +103,7 @@ export class Server {
 
             // Send File info into Request Message to client
             const file = await Deno.readFile(reqFile)
+            console.log(file.length)
             const reqBody = RequestBody.makeReqBody(file.length, '')
             const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_LOAD, reqBody.getSize(), Const.LASTMSG)
             await PacketUtil.Send(this.serverConn, new Message(reqHeader, reqBody))
@@ -116,7 +117,7 @@ export class Server {
                     const dBody = new DataBody(file.slice(totalSend, totalSend+dataLen))
                     totalSend += dataLen
                     const lastMSG = totalSend === file.length ? Const.LASTMSG : Const.NOT_LASTMSG
-                    const dHeader = Header.makeHeader(Const.MSG_SND, Const.CMD_SAVE, dataLen, lastMSG)
+                    const dHeader = Header.makeHeader(Const.MSG_SND, Const.CMD_LOAD, dataLen, lastMSG)
                     await PacketUtil.Send(this.serverConn, new Message(dHeader, dBody))
                 }
 
