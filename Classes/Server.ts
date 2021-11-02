@@ -36,7 +36,7 @@ export class Server {
                 await PacketUtil.Send(this.serverConn, 
                     new Message(Header.makeHeader(Const.MSG_RES, Const.CMD_SAVE, 1, Const.LASTMSG), 
                     new ResponseBody(new Uint8Array([Const.DENIED]))))
-
+                await Deno.remove(fileName)
                 return
             }
             try{
@@ -57,7 +57,7 @@ export class Server {
                     lastMSG = dHeader.lastMSG
                     totalRecv += dBody.getSize()
 
-                    if(totalRecv >= 1024000) {
+                    if(!lastMSG) {
                         const resHeader = Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.LASTMSG)
                         const resBody = new ResponseBody(new Uint8Array([Const.ACCEPTED]))
                         await PacketUtil.Send(this.serverConn, new Message(resHeader, resBody))
@@ -69,7 +69,6 @@ export class Server {
                     await PacketUtil.Send(this.serverConn, 
                         new Message(rstHeader, new ResultBody(new Uint8Array([Const.FAIL]))))
 
-                    await Deno.remove(fileName)
                     throw new Error(`File Size Mismatch`)
                 }
             
@@ -82,6 +81,7 @@ export class Server {
                 const rstHeader = Header.makeHeader(Const.MSG_RST, Const.CMD_SAVE, 1, Const.LASTMSG)
                 await PacketUtil.Send(this.serverConn, 
                     new Message(rstHeader, new ResultBody(new Uint8Array([Const.FAIL]))))
+                await Deno.remove(fileName)    
                 throw new Error(`Failed to Save File\n`+e)
             }
         } catch(e) {
@@ -125,7 +125,7 @@ export class Server {
                     const dHeader = Header.makeHeader(Const.MSG_SND, Const.CMD_LOAD, dataLen, lastMSG)
                     await PacketUtil.Send(this.serverConn, new Message(dHeader, dBody))
 
-                    if (totalSend >= 1024000) {
+                    if (!lastMSG) {
                         const ruOK = await PacketUtil.Receive(this.serverConn)
                         const answer = new ResponseBody(ruOK.body.getBytes())
                         if (answer.RESPONSE !== Const.ACCEPTED || ruOK.header.typeMSG !== Const.MSG_RES) 

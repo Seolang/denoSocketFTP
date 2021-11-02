@@ -71,7 +71,7 @@ export class Client {
                     const dHeader = Header.makeHeader(Const.MSG_SND, Const.CMD_SAVE, dataLen, lastMSG)
                     await PacketUtil.Send(this.clientConn, new Message(dHeader, dBody))
 
-                    if (totalSend >= 1024000) {
+                    if (!lastMSG) {
                         const ruOK = await PacketUtil.Receive(this.clientConn)
                         const answer = new ResponseBody(ruOK.body.getBytes())
                         if (answer.RESPONSE !== Const.ACCEPTED || ruOK.header.typeMSG !== Const.MSG_RES) 
@@ -146,8 +146,7 @@ export class Client {
                         }
                         lastMSG = dHeader.lastMSG
                         totalRecv += dBody.getSize()
-
-                        if(totalRecv >= 1024000) {
+                        if(!lastMSG) {
                             const resHeader = Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.LASTMSG)
                             const resBody = new ResponseBody(new Uint8Array([Const.ACCEPTED]))
                             await PacketUtil.Send(this.clientConn, new Message(resHeader, resBody))
@@ -155,7 +154,6 @@ export class Client {
                     }
                     console.log(`receive completed`)
                     if (totalRecv !== fileSize) {
-                        await Deno.remove(dest)
                         throw new Error(`File Size Mismatch`)
                     }
                 
@@ -163,6 +161,7 @@ export class Client {
                     console.log(`Load "${Const.PATH+path}" to "${dest}" Complete`)
 
                 } catch(e) {
+                    await Deno.remove(dest)
                     throw new Error(`Failed to Load File\n`+e)
                 }
             }
