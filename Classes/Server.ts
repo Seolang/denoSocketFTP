@@ -56,6 +56,12 @@ export class Server {
                     }
                     lastMSG = dHeader.lastMSG
                     totalRecv += dBody.getSize()
+
+                    if(totalRecv >= 1024000) {
+                        const resHeader = Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.LASTMSG)
+                        const resBody = new ResponseBody(new Uint8Array([Const.ACCEPTED]))
+                        await PacketUtil.Send(this.serverConn, new Message(resHeader, resBody))
+                    }
                 }
 
                 const rstHeader = Header.makeHeader(Const.MSG_RST, Const.CMD_SAVE, 1, Const.LASTMSG)
@@ -103,7 +109,6 @@ export class Server {
 
             // Send File info into Request Message to client
             const file = await Deno.readFile(reqFile)
-            console.log(file.length)
             const reqBody = RequestBody.makeReqBody(file.length, '')
             const reqHeader = Header.makeHeader(Const.MSG_REQ, Const.CMD_LOAD, reqBody.getSize(), Const.LASTMSG)
             await PacketUtil.Send(this.serverConn, new Message(reqHeader, reqBody))
@@ -119,6 +124,13 @@ export class Server {
                     const lastMSG = totalSend === file.length ? Const.LASTMSG : Const.NOT_LASTMSG
                     const dHeader = Header.makeHeader(Const.MSG_SND, Const.CMD_LOAD, dataLen, lastMSG)
                     await PacketUtil.Send(this.serverConn, new Message(dHeader, dBody))
+
+                    if (totalSend >= 1024000) {
+                        const ruOK = await PacketUtil.Receive(this.serverConn)
+                        const answer = new ResponseBody(ruOK.body.getBytes())
+                        if (answer.RESPONSE !== Const.ACCEPTED || ruOK.header.typeMSG !== Const.MSG_RES) 
+                            throw new Error(`Client didn't response`);
+                    }
                 }
 
             } catch(e) {

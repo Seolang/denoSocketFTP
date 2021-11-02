@@ -1,7 +1,7 @@
 import {Queue, CmdBlock} from "./CmdQueue.ts"
 import {Const} from "./Const.ts"
 import {decoder, exists} from "./Functions.ts"
-import {Message, Header, RequestBody, DataBody, ResultBody} from "./Packet.ts"
+import {Message, Header, RequestBody, ResponseBody, DataBody, ResultBody} from "./Packet.ts"
 import {PacketUtil} from "./PacketUtil.ts"
 import {ensureFileSync} from "../dept.ts" 
 
@@ -70,6 +70,13 @@ export class Client {
                     const lastMSG = totalSend === file.length ? Const.LASTMSG : Const.NOT_LASTMSG
                     const dHeader = Header.makeHeader(Const.MSG_SND, Const.CMD_SAVE, dataLen, lastMSG)
                     await PacketUtil.Send(this.clientConn, new Message(dHeader, dBody))
+
+                    if (totalSend >= 1024000) {
+                        const ruOK = await PacketUtil.Receive(this.clientConn)
+                        const answer = new ResponseBody(ruOK.body.getBytes())
+                        if (answer.RESPONSE !== Const.ACCEPTED || ruOK.header.typeMSG !== Const.MSG_RES) 
+                            throw new Error(`Client didn't response`);
+                    }
                 }
 
                 // Receive Result Message
@@ -116,7 +123,7 @@ export class Client {
             if (response.body.getBytes()[0] === Const.ACCEPTED) {
                 // Receive file size info from server by using Req Message.
                 const fileSize = new RequestBody((await PacketUtil.Receive(this.clientConn)).body.getBytes()).FILESIZE
-                console.log(fileSize)
+
                 // check if file exist, if not, make empty file
                 try {
                     if(!await exists(dest))
@@ -125,7 +132,6 @@ export class Client {
                     const mem = new Uint8Array(fileSize)
                     let lastMSG = 0
                     let totalRecv = 0
-                    console.log(`memory alloc comple`)
                     // Receive Data
                     while(lastMSG === Const.NOT_LASTMSG && totalRecv < fileSize) {
                         const message = await PacketUtil.Receive(this.clientConn)
@@ -135,12 +141,17 @@ export class Client {
                             throw new Error(`Invalid Packet Order`)
 
                         const dBody = new DataBody(message.body.getBytes())
-                        console.log(totalRecv)
                         for (let i = totalRecv, j = 0; i < totalRecv + dBody.getSize(); i++) {
                             mem[i] = dBody.DATA[j++]
                         }
                         lastMSG = dHeader.lastMSG
                         totalRecv += dBody.getSize()
+
+                        if(totalRecv >= 1024000) {
+                            const resHeader = Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.LASTMSG)
+                            const resBody = new ResponseBody(new Uint8Array([Const.ACCEPTED]))
+                            await PacketUtil.Send(this.clientConn, new Message(resHeader, resBody))
+                        }
                     }
                     console.log(`receive completed`)
                     if (totalRecv !== fileSize) {
