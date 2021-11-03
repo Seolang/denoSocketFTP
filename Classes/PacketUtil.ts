@@ -17,19 +17,39 @@ export class PacketUtil {
     // Packet Receive method
     // Param conn: connection of server or client
     public static async Receive(conn: Deno.Conn): Promise<Message> {
-        let sizeToRead = 11     // Header fixed bytes size
+        let sizeToRead = 15     // Header fixed bytes size
+        let totalRecv = 0
         const hBuffer = new Uint8Array(sizeToRead)
-        let recv = await conn.read(hBuffer)
-        if (recv == null) {
-            throw new Error(`No header received`)
+        while(sizeToRead > 0) {
+            const buffer = new Uint8Array(sizeToRead)
+            const recv = await conn.read(buffer)
+            if (recv == null) {
+                throw new Error(`No header received`)
+            }
+            // copy buffer data to header buffer
+            for(let i=0; i < recv; i++) {
+                hBuffer[totalRecv+i] = buffer[i]
+            }
+            totalRecv += recv
+            sizeToRead -= recv
         }
         const header = new Header(hBuffer)
+        console.log(`${header.typeMSG} ${header.typeCMD} ${header.bodyLen} ${header.lastMSG}`)
 
+        totalRecv = 0
         sizeToRead = header.bodyLen
         const bBuffer = new Uint8Array(sizeToRead)
-        recv = await conn.read(bBuffer)
-        if (recv == null) {
-            throw new Error(`No body received`)
+        while(sizeToRead > 0) {
+            const buffer = new Uint8Array(sizeToRead)
+            const recv = await conn.read(buffer)
+            if (recv == null) {
+                throw new Error(`No body received`)
+            }
+            for(let i=0; i < recv; i++) {
+                bBuffer[totalRecv+i] = buffer[i]
+            }
+            totalRecv += recv
+            sizeToRead -= recv
         }
 
         //reform body contents into appropriate body

@@ -71,12 +71,11 @@ export class Client {
                     const dHeader = Header.makeHeader(Const.MSG_SND, Const.CMD_SAVE, dataLen, lastMSG)
                     await PacketUtil.Send(this.clientConn, new Message(dHeader, dBody))
 
-                    if (!lastMSG) {
-                        const ruOK = await PacketUtil.Receive(this.clientConn)
-                        const answer = new ResponseBody(ruOK.body.getBytes())
-                        if (answer.RESPONSE !== Const.ACCEPTED || ruOK.header.typeMSG !== Const.MSG_RES) 
-                            throw new Error(`Client didn't response`);
-                    }
+                    const ruOK = await PacketUtil.Receive(this.clientConn)
+                    const answer = new ResponseBody(ruOK.body.getBytes())
+                    if (answer.RESPONSE !== Const.ACCEPTED || ruOK.header.typeMSG !== Const.MSG_RES) 
+                        throw new Error(`Server didn't response`);
+
                 }
 
                 // Receive Result Message
@@ -132,6 +131,7 @@ export class Client {
                     const mem = new Uint8Array(fileSize)
                     let lastMSG = 0
                     let totalRecv = 0
+
                     // Receive Data
                     while(lastMSG === Const.NOT_LASTMSG && totalRecv < fileSize) {
                         const message = await PacketUtil.Receive(this.clientConn)
@@ -146,11 +146,12 @@ export class Client {
                         }
                         lastMSG = dHeader.lastMSG
                         totalRecv += dBody.getSize()
-                        if(!lastMSG) {
-                            const resHeader = Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.LASTMSG)
-                            const resBody = new ResponseBody(new Uint8Array([Const.ACCEPTED]))
-                            await PacketUtil.Send(this.clientConn, new Message(resHeader, resBody))
-                        }
+                        
+                        const resHeader = Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.LASTMSG)
+                        const resBody = new ResponseBody(new Uint8Array([Const.ACCEPTED]))
+                        await PacketUtil.Send(this.clientConn, new Message(resHeader, resBody))
+                        
+                        
                     }
                     console.log(`receive completed`)
                     if (totalRecv !== fileSize) {

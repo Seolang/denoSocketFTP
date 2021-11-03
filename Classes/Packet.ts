@@ -1,5 +1,3 @@
-import {toBytesInt64, toInt64Bytes} from "./Functions.ts"
-
 // Common Packet Interface
 export interface Packet {
     getBytes(): Uint8Array  // Return Bytes Array of Packet
@@ -42,28 +40,30 @@ export class Header implements Packet {
     lastMSG: number     
 
     constructor(bytes: Uint8Array) {
-        const len = toInt64Bytes(bytes.slice(2,10))
+        const len = bytes.slice(2,14)
         this.typeMSG = bytes[0]     // 1: Request, 2: Response, 3: Data, 4: Result
         this.typeCMD = bytes[1]     // 1: Save, 2: Load, 3: Delete
-        this.bodyLen = len          // size of body right behind packet contents
-        this.lastMSG = bytes[10]    // 1: this packet is last, 0: there are more packets which divided from one source
+        this.bodyLen = Number(new TextDecoder().decode(len))        // size of body right behind packet contents
+        this.lastMSG = bytes[14]    // 1: this packet is last, 0: there are more packets which divided from one source
     }
 
     public getBytes() {
-        const len = new Uint8Array(toBytesInt64(this.bodyLen))
-        const temp = new Uint8Array([this.typeMSG, this.typeCMD, ...len, this.lastMSG ])
+        const len = '000000000000'+this.bodyLen.toString()
+        const lenTo12 = len.slice(len.length-12,len.length)
+        const bytes = new Uint8Array(new TextEncoder().encode(lenTo12))
+        const temp = new Uint8Array([this.typeMSG, this.typeCMD, ...bytes, this.lastMSG ])
 
         return temp
     }
 
     public getSize() {
-        return 11
+        return 15
     }
 
     // Because Javascript doesn't support Constructor Overload,
     // Add this static function to make header easier
     public static makeHeader(MSG:number, CMD:number, Len:number, last:number) {
-        const header = new Header(new Uint8Array(11))
+        const header = new Header(new Uint8Array(15))
         header.typeMSG = MSG
         header.typeCMD = CMD
         header.bodyLen = Len
@@ -78,23 +78,25 @@ export class RequestBody implements Packet {
     FILENAME: Uint8Array    //Request file path/name
 
     constructor(bytes:Uint8Array) {
-        this.FILESIZE = toInt64Bytes(bytes.slice(0, 8))
-        this.FILENAME = new Uint8Array(bytes.slice(8, bytes.length))
+        this.FILESIZE = Number(new TextDecoder().decode(bytes.slice(0, 12)))
+        this.FILENAME = new Uint8Array(bytes.slice(12, bytes.length))
     }
 
     public getBytes() {
-        const size = toBytesInt64(this.FILESIZE)
-        const bytes = new Uint8Array([...size, ...this.FILENAME])
+        const len = '000000000000'+this.FILESIZE.toString()
+        const lenTo12 = len.slice(len.length-12,len.length)
+        const numString = new Uint8Array(new TextEncoder().encode(lenTo12))
+        const bytes = new Uint8Array([...numString, ...this.FILENAME])
         return bytes
     }
 
     public getSize() {
-        return 8 + this.FILENAME.length
+        return 12 + this.FILENAME.length
     }
 
     // Instead of Constructor Overload
     public static makeReqBody(size: number, name: string) {
-        const body = new RequestBody(new Uint8Array(11))
+        const body = new RequestBody(new Uint8Array(15))
         body.FILESIZE = size
         body.FILENAME = new TextEncoder().encode(name)
 

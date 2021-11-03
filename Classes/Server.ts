@@ -1,12 +1,12 @@
 import {Const} from "./Const.ts"
-import {decoder, exists} from "./Functions.ts"
+import {exists} from "./Functions.ts"
 import {Message, Header, RequestBody, ResponseBody, DataBody, ResultBody} from "./Packet.ts"
 import {PacketUtil} from "./PacketUtil.ts"
 import {ensureFileSync} from "../dept.ts"
 
 export class Server {
     serverConn: Deno.Conn 
-
+    decoder = new TextDecoder()
     constructor(conn: Deno.Conn) {
         this.serverConn = conn
     }
@@ -23,7 +23,7 @@ export class Server {
     async save(bytes: Uint8Array) {
         try {
             const body = new RequestBody(bytes)
-            const fileName = Const.PATH+decoder.decode(body.FILENAME)
+            const fileName = Const.PATH+this.decoder.decode(body.FILENAME)
             const fileSize = body.FILESIZE
             try {
                 if (!await exists(fileName))
@@ -57,11 +57,10 @@ export class Server {
                     lastMSG = dHeader.lastMSG
                     totalRecv += dBody.getSize()
 
-                    if(!lastMSG) {
-                        const resHeader = Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.LASTMSG)
-                        const resBody = new ResponseBody(new Uint8Array([Const.ACCEPTED]))
-                        await PacketUtil.Send(this.serverConn, new Message(resHeader, resBody))
-                    }
+                    const resHeader = Header.makeHeader(Const.MSG_RES, Const.CMD_LOAD, 1, Const.LASTMSG)
+                    const resBody = new ResponseBody(new Uint8Array([Const.ACCEPTED]))
+                    await PacketUtil.Send(this.serverConn, new Message(resHeader, resBody))
+
                 }
 
                 const rstHeader = Header.makeHeader(Const.MSG_RST, Const.CMD_SAVE, 1, Const.LASTMSG)
@@ -93,7 +92,7 @@ export class Server {
     async load(bytes: Uint8Array) {
         try {
             //check if file exist in server backup dir
-            const reqFile = Const.PATH+decoder.decode(new RequestBody(bytes).FILENAME)
+            const reqFile = Const.PATH+this.decoder.decode(new RequestBody(bytes).FILENAME)
 
             //if not exist, send Deny Response, else, send Accpet response
             if (!await exists(reqFile)) {
@@ -125,12 +124,11 @@ export class Server {
                     const dHeader = Header.makeHeader(Const.MSG_SND, Const.CMD_LOAD, dataLen, lastMSG)
                     await PacketUtil.Send(this.serverConn, new Message(dHeader, dBody))
 
-                    if (!lastMSG) {
-                        const ruOK = await PacketUtil.Receive(this.serverConn)
-                        const answer = new ResponseBody(ruOK.body.getBytes())
-                        if (answer.RESPONSE !== Const.ACCEPTED || ruOK.header.typeMSG !== Const.MSG_RES) 
-                            throw new Error(`Client didn't response`);
-                    }
+                    const ruOK = await PacketUtil.Receive(this.serverConn)
+                    const answer = new ResponseBody(ruOK.body.getBytes())
+                    if (answer.RESPONSE !== Const.ACCEPTED || ruOK.header.typeMSG !== Const.MSG_RES) 
+                        throw new Error(`Client didn't response`)
+
                 }
 
             } catch(e) {
@@ -147,7 +145,7 @@ export class Server {
         try {
             
             const recursive = new RequestBody(bytes).FILESIZE
-            const delFile = Const.PATH+decoder.decode(new RequestBody(bytes).FILENAME)
+            const delFile = Const.PATH+this.decoder.decode(new RequestBody(bytes).FILENAME)
 
             if (delFile.startsWith(Const.PATH+`..`)) {
                 await PacketUtil.Send(this.serverConn, 
